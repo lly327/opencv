@@ -219,7 +219,7 @@ def findPlateNumberRegion(ori_img, img, plate_dir, img_name):
                 image = None
                 return image, 5
 
-            # plt_show0(tamper_img)  # 篡改后的车牌
+            plt_show0(tamper_img)  # 篡改后的车牌
 
             # plt_show0(adjusted_img)  # 将篡改后的车牌放回图片中
 
@@ -229,7 +229,7 @@ def findPlateNumberRegion(ori_img, img, plate_dir, img_name):
             except Exception as e:
                 print(f'{e}将图片映射回原来大小错误:{img_name}')
                 return None, 5
-            # plt_show0(dst)
+            plt_show0(dst)
 
             flag = 1
             return dst, flag
@@ -380,7 +380,7 @@ def separate_blue():
     # img_names_outside = ['086.jpg']
     # img_names = ['86.jpg', '93.jpg', '126.jpg', '133.jpg', '134.jpg', '135.jpg', '144.jpg']
     # img_names = ['03.jpg', '27.JPG', '43.jpg', '66.jpg', '75.jpg', '96.jpg', '114.jpg', '118.jpg']
-    img_names = ['57.jpg']
+    img_names = ['00.JPG']
     mean_lumin = []
     for img_name in img_names:
         img_path = os.path.join(img_dir, img_name)

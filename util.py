@@ -373,7 +373,6 @@ class draw_text_in_surf():
         return surf_arr
 
 
-
 def bw2dis(bw_img):
     """将黑白mask转为距离图"""
     surf_arr = np.expand_dims(bw_img, -1)
@@ -404,6 +403,7 @@ def use_tet_gan(img, bg_cor_bgr, char):
     plt_show0(img)
     ori_h = img.shape[0]
     ori_w = img.shape[1]
+    ori_char_ratio = ori_w/ori_h
     # 1
     bg_img = np.zeros((320, 320, 3)).astype(np.uint8)
     for i in range(bg_img.shape[0]):
@@ -412,8 +412,8 @@ def use_tet_gan(img, bg_cor_bgr, char):
                 bg_img[i, j, k] = bg_cor_bgr[k]
     plt_show0(bg_img)
 
-    ratio = 280/ori_h
-    new_img = cv2.resize(img, (int(ratio * ori_w), 280))
+    ratio = 240/ori_h
+    new_img = cv2.resize(img, (int(ratio * ori_w), 240))
     x = int((320-new_img.shape[1])/2)
     y = int((320-new_img.shape[0])/2)
     bg_img[y:y+new_img.shape[0], x:x+new_img.shape[1]] = new_img
@@ -441,28 +441,34 @@ def use_tet_gan(img, bg_cor_bgr, char):
     plt_show0(whole_img)
 
     # 4 oneshot
-    filename = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/data/oneshotstyle/00.png'
+    filename = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/data/oneshotstyle/01.png'
     cv2.imwrite(filename, whole_img)
     main(filename)  # finetune
 
     # 5 predict
     content_mask = dtis.draw_plate_mask(char)
     content_mask = bw2dis(content_mask)  # 距离图
-    filename_style = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/data/style/00.png'
-    filename_content = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/data/content/00.png'
+    filename_style = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/data/style/01.png'
+    filename_content = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/data/content/01.png'
     cv2.imwrite(filename_style, bg_img)
     cv2.imwrite(filename_content, content_mask)
     style_name = filename_style  # 篡改原图 320 320
     content_name = filename_content  # 字符2 320 320
     content_type = 0  # 字符2类型，0距离图，1黑白图
     result_dir = '/home/lily/EfficientNet_pytorch/platenumber/TET_GAN/output/'
-    name = '00.png'  # 预测结果名称
+    name = '01.png'  # 预测结果名称
     te_main(style_name=style_name, content_name=content_name, content_type=content_type, result_dir=result_dir, name=name)
 
     result_path = os.path.join(result_dir, name)  # 256 256
     result_img = cv2.imread(result_path)
     plt_show0(result_img)
-    result_img = result_img[:, 50:200, ]
+
+    # 计算字符的精确位置
+    ret, img = cv2.threshold(result_img, 120, 255, cv2.THRESH_BINARY)
+    loc = np.where(img > 20)
+    miny, minx = np.min(loc[0])-5, np.min(loc[1])-5
+    maxy, maxx = np.max(loc[0])+5, np.max(loc[1])+5
+    result_img = result_img[miny:maxy+1, minx:maxx+1, ]
     plt_show0(result_img)
     result_img = cv2.resize(result_img, (ori_w, ori_h))  # 将图片裁剪为原始大小
     plt_show0(result_img)
@@ -575,74 +581,19 @@ def tamper_plate(ori_img, image_name):
     # 将篡改部分字符的平均颜色提取出来,输入参数:字符区域图像
     y = approx_list[index][2][0][1]  # 最小外接矩形的中心点y值
     x = approx_list[index][2][0][0]  # 最小外接矩形的中心点x值
-    width = approx_list[index][4]
-    height = approx_list[index][3]
-    y = int(y-width/2)
-    x = int(x-height/2)
+    width = approx_list[index][4]+10
+    height = approx_list[index][3]+10
+    y = int(y-width/2)-5
+    x = int(x-height/2)-5
     char_img = ori_img[y:y+width, x:x+height, :]
     plt_show0(char_img)  # 展示需要篡改的字符位置
     mean_color = get_tamper_char_mean_color(char_img)
     mean_bg_color = get_tamper_char_mean_color(char_img, reverse=True)  # reverse=True表示取蓝色背景的平均颜色
 
     # 这里对需要篡改的字符进行TET-GAN修改操作
-    # tet_gan_char_img = use_tet_gan(char_img, mean_bg_color, char.upper())
-    # ori_img[y:y + width, x:x + height, :] = tet_gan_char_img
-    # dst_img = ori_img
-
-    # 对需要篡改的区域进行inpainting操作
-    cv2.fillPoly(mask_img, [approx], 255)  # 生成要篡改字符的mask
-    # dst_img = cv2.inpaint(ori_img, mask_img, 3, cv2.INPAINT_TELEA)  # 这个inpainting方法效果更好
-    for i in range(char_img.shape[0]):
-        for j in range(char_img.shape[1]):
-            for k in range(3):
-                if mask_img[y + i, x + j] == 255:
-                    ori_img[y + i, x + j, k] = mean_bg_color[k]
-
-    # plt_show0(dst_img)
-
-    min_rect = approx_list[index][2]
-    points = cv2.boxPoints(min_rect)
-    points = np.int0(points)  # 最小外接矩形的四个点坐标
-    points = sorted(points, key=lambda x: x[0] + x[1])
-    point1 = points[0]  # 最小外接矩形的左上角坐标
-    x, y = point1[0], point1[1]
-    width, height = approx_list[index][3], approx_list[index][4]  # 注意：这里把长的当做高，短边当做宽
-
-    # 选择需要篡改的png
-    # char = 'x'
-    # print(char.upper())
-    tamper_char = cv2.imread(f'/home/lily/EfficientNet_pytorch/platenumber/LicensePlateChars/AlpChars/{char.upper()}.png')
-    # plt_show0(tamper_char)
-    tamper_char = cv2.resize(tamper_char, (width, height))
-    tamper_char = cv2.blur(tamper_char, (3, 3))  # 对篡改的字符进行平滑处理
-    # plt_show0(tamper_char)
-    for i in range(height):
-        for j in range(width):
-            for k in range(3):
-                if tamper_char[i, j, k] == 0:
-                    # temp_int = np.random.randint(-5, 6, 1)[0]
-                    dst_img[y + i, x+5 + j, k] = mean_color[k]
-
-    # dst_img = cv2.cvtColor(dst_img, cv2.COLOR_BGR2RGBA)
-    # temp = GenCh1(fontE, char, width, height)
-    # temp_bgr = cv2.cvtColor(temp, cv2.COLOR_RGB2BGR)
-    # plt_show0(temp_bgr)
-    # temp_bgr = cv2.resize(temp_bgr, (width, height))
-    # plt_show0(temp_bgr)
-    # dst_img[y:y + height, x:x + width, :] = temp
-    # dst_img[x:x + width, y:y + height] = temp
-    # dst_img = cv2.cvtColor(dst_img, cv2.COLOR_RGBA2BGR)
-    # for i in range(height):
-    #     for j in range(width):
-    #         for k in range(3):
-    #             if temp[i, j, k] == 0:
-    #                 dst_img[y + i, x + j, k] = 255
-
-    # dst_img2 = cv2.inpaint(ori_img, mask_img, 3, cv2.INPAINT_NS)
-    # plt_show(mask_img)
-    # plt_show0(dst_img)
-    # print(count)
-    # print("DONE")
+    tet_gan_char_img = use_tet_gan(char_img, mean_bg_color, char.upper())
+    ori_img[y:y + width, x:x + height, :] = tet_gan_char_img
+    dst_img = ori_img
 
     return dst_img
 
